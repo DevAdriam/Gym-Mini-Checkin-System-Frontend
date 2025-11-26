@@ -86,7 +86,12 @@ export default function ImageUpload({
     if (memberId && imageType && onUploadComplete) {
       setIsUploading(true);
       try {
-        const response = await uploadImage(memberId, file, imageType, description);
+        const response = await uploadImage(
+          memberId,
+          file,
+          imageType,
+          description
+        );
         onUploadComplete(response.url || response.imageUrl);
         toast.success("Image uploaded successfully");
       } catch (error: any) {
@@ -118,7 +123,7 @@ export default function ImageUpload({
 
   const handleRemove = () => {
     setPreviewUrl(null);
-    onUploadComplete("");
+    onUploadComplete?.("");
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -226,4 +231,3 @@ export default function ImageUpload({
     </div>
   );
 }
-

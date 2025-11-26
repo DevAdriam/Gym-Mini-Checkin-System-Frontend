@@ -613,12 +613,6 @@ export default function MemberRegisterPage() {
                 under review. Please wait for approval.
               </p>
             </div>
-            <button
-              onClick={() => setShowPendingModal(false)}
-              className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-            >
-              OK
-            </button>
           </div>
         </div>
       )}

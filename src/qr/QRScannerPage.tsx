@@ -1,13 +1,16 @@
 import { useState, useEffect, useRef } from "react";
 import { Html5Qrcode } from "html5-qrcode";
-import { memberCheckIn } from "../lib/api/member-checkin";
+import { memberCheckIn, memberCheckOut } from "../lib/api/member-checkin";
 import toast from "react-hot-toast";
 import type { CheckInResponse } from "../lib/api/member-checkin";
+
+const MEMBER_CHECKIN_STATUS_KEY = "gym_member_checkin_status";
 
 export default function QRScannerPage() {
   const [isScanning, setIsScanning] = useState(false);
   const [checkInResult, setCheckInResult] = useState<CheckInResponse | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [currentMemberId, setCurrentMemberId] = useState<string | null>(null);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
 
@@ -72,7 +75,7 @@ export default function QRScannerPage() {
   };
 
   const handleQRCodeDetected = async (memberId: string) => {
-    if (isProcessing) return; // Prevent multiple simultaneous check-ins
+    if (isProcessing) return; // Prevent multiple simultaneous operations
 
     setIsProcessing(true);
     
@@ -81,17 +84,73 @@ export default function QRScannerPage() {
       await stopScanning();
     }
 
+    const trimmedMemberId = memberId.trim();
+    setCurrentMemberId(trimmedMemberId);
+
     try {
-      const result = await memberCheckIn(memberId.trim());
+      // Check localStorage to determine if member is currently checked in
+      const checkInStatus = localStorage.getItem(MEMBER_CHECKIN_STATUS_KEY);
+      const isCheckedIn = checkInStatus === "checked_in";
+
+      let result: CheckInResponse;
+      
+      if (isCheckedIn) {
+        // Member is checked in, so call checkout
+        result = await memberCheckOut(trimmedMemberId);
+        if (result.status === "ALLOWED") {
+          // Update localStorage to checked_out
+          localStorage.setItem(MEMBER_CHECKIN_STATUS_KEY, "checked_out");
+          toast.success("Check-out successful!");
+        } else {
+          toast.error(result.reason || "Check-out denied");
+        }
+      } else {
+        // Member is not checked in, so call check-in
+        result = await memberCheckIn(trimmedMemberId);
+        if (result.status === "ALLOWED") {
+          // Update localStorage to checked_in
+          localStorage.setItem(MEMBER_CHECKIN_STATUS_KEY, "checked_in");
+          toast.success("Check-in successful!");
+        } else {
+          toast.error(result.reason || "Check-in denied");
+        }
+      }
+      
+      setCheckInResult(result);
+    } catch (error: any) {
+      toast.error(error.message || "Operation failed");
+      setCheckInResult({
+        success: false,
+        status: "DENIED",
+        message: error.message || "Operation failed",
+        reason: error.message || "Operation failed",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleScanAgain = () => {
+    setCheckInResult(null);
+    setCurrentMemberId(null);
+    startScanning();
+  };
+
+  const handleCheckIn = async () => {
+    if (!currentMemberId) {
+      toast.error("Member ID not found");
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      const result = await memberCheckIn(currentMemberId);
       setCheckInResult(result);
       
       if (result.status === "ALLOWED") {
+        localStorage.setItem(MEMBER_CHECKIN_STATUS_KEY, "checked_in");
         toast.success("Check-in successful!");
-        // Auto-restart scanning after 3 seconds for next check-in
-        setTimeout(() => {
-          setCheckInResult(null);
-          startScanning();
-        }, 3000);
       } else {
         toast.error(result.reason || "Check-in denied");
       }
@@ -108,9 +167,35 @@ export default function QRScannerPage() {
     }
   };
 
-  const handleScanAgain = () => {
-    setCheckInResult(null);
-    startScanning();
+  const handleCheckOut = async () => {
+    if (!currentMemberId) {
+      toast.error("Member ID not found");
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      const result = await memberCheckOut(currentMemberId);
+      setCheckInResult(result);
+      
+      if (result.status === "ALLOWED") {
+        localStorage.setItem(MEMBER_CHECKIN_STATUS_KEY, "checked_out");
+        toast.success("Check-out successful!");
+      } else {
+        toast.error(result.reason || "Check-out failed");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Check-out failed");
+      setCheckInResult({
+        success: false,
+        status: "DENIED",
+        message: error.message || "Check-out failed",
+        reason: error.message || "Check-out failed",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -219,45 +304,49 @@ export default function QRScannerPage() {
             ) : (
               <div className="space-y-4">
                 {/* Status Badge */}
-                <div className="text-center">
-                  <div
-                    className={`inline-flex items-center px-4 py-2 rounded-full text-lg font-semibold ${
-                      checkInResult.status === "ALLOWED"
-                        ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                        : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                    }`}
-                  >
-                    {checkInResult.status === "ALLOWED" ? (
-                      <svg
-                        className="w-6 h-6 mr-2"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                    ) : (
-                      <svg
-                        className="w-6 h-6 mr-2"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M6 18L18 6M6 6l12 12"
-                        />
-                      </svg>
-                    )}
-                    {checkInResult.status}
-                  </div>
+                <div className="text-center space-y-2">
+                  {/* Check-in Status */}
+                  {checkInResult.status && (
+                    <div
+                      className={`inline-flex items-center px-4 py-2 rounded-full text-lg font-semibold ${
+                        checkInResult.status === "ALLOWED"
+                          ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                          : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                      }`}
+                    >
+                      {checkInResult.status === "ALLOWED" ? (
+                        <svg
+                          className="w-6 h-6 mr-2"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M5 13l4 4L19 7"
+                          />
+                        </svg>
+                      ) : (
+                        <svg
+                          className="w-6 h-6 mr-2"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      )}
+                      {checkInResult.status}
+                    </div>
+                  )}
+                  
                 </div>
 
                 {/* Member Information */}
@@ -322,13 +411,37 @@ export default function QRScannerPage() {
                   </div>
                 )}
 
-                {/* Scan Again Button */}
-                <button
-                  onClick={handleScanAgain}
-                  className="w-full px-4 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-semibold"
-                >
-                  Scan Another QR Code
-                </button>
+                {/* Action Buttons */}
+                <div className="space-y-2">
+                  {/* Show Check In button if check-in was denied or failed */}
+                  {checkInResult.status !== "ALLOWED" && (
+                    <button
+                      onClick={handleCheckIn}
+                      disabled={isProcessing || !currentMemberId}
+                      className="w-full px-4 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 font-semibold disabled:opacity-50"
+                    >
+                      {isProcessing ? "Processing..." : "Check In"}
+                    </button>
+                  )}
+                  
+                  {/* Show Check Out button if check-in was successful */}
+                  {checkInResult.status === "ALLOWED" && (
+                    <button
+                      onClick={handleCheckOut}
+                      disabled={isProcessing}
+                      className="w-full px-4 py-3 bg-orange-600 text-white rounded-md hover:bg-orange-700 font-semibold disabled:opacity-50"
+                    >
+                      {isProcessing ? "Processing..." : "Check Out"}
+                    </button>
+                  )}
+                  
+                  <button
+                    onClick={handleScanAgain}
+                    className="w-full px-4 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-semibold"
+                  >
+                    Scan Another QR Code
+                  </button>
+                </div>
               </div>
             )}
           </div>

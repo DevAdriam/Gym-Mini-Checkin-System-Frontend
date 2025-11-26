@@ -40,16 +40,8 @@ export default function RegisterSuccessPage() {
               <li>Your membership will be activated upon approval</li>
             </ul>
           </div>
-
-          <Link
-            to="/members/register"
-            className="block w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-          >
-            Register Another Member
-          </Link>
         </div>
       </div>
     </div>
   );
 }
-

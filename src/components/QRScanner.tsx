@@ -1,6 +1,8 @@
 import { QRCodeSVG } from "qrcode.react";
-import { memberCheckIn } from "../lib/api/member-checkin";
+import { memberCheckIn, memberCheckOut } from "../lib/api/member-checkin";
 import toast from "react-hot-toast";
+
+const MEMBER_CHECKIN_STATUS_KEY = "gym_member_checkin_status";
 
 interface QRScannerProps {
   memberId: string;
@@ -15,18 +17,41 @@ export default function QRScanner({
 }: QRScannerProps) {
   const handleCheckIn = async () => {
     try {
-      const result = await memberCheckIn(memberId);
-      if (result.status === "ALLOWED") {
-        toast.success("Check-in successful!");
-        onCheckInSuccess?.();
-        setTimeout(() => {
-          onClose();
-        }, 1500);
+      // Check localStorage to determine if member is currently checked in
+      const checkInStatus = localStorage.getItem(MEMBER_CHECKIN_STATUS_KEY);
+      const isCheckedIn = checkInStatus === "checked_in";
+
+      let result;
+
+      if (isCheckedIn) {
+        // Member is checked in, so call checkout
+        result = await memberCheckOut(memberId);
+        if (result.status === "ALLOWED") {
+          localStorage.setItem(MEMBER_CHECKIN_STATUS_KEY, "checked_out");
+          toast.success("Check-out successful!");
+          onCheckInSuccess?.();
+          setTimeout(() => {
+            onClose();
+          }, 1500);
+        } else {
+          toast.error(result.reason || "Check-out denied");
+        }
       } else {
-        toast.error(result.reason || "Check-in denied");
+        // Member is not checked in, so call check-in
+        result = await memberCheckIn(memberId);
+        if (result.status === "ALLOWED") {
+          localStorage.setItem(MEMBER_CHECKIN_STATUS_KEY, "checked_in");
+          toast.success("Check-in successful!");
+          onCheckInSuccess?.();
+          setTimeout(() => {
+            onClose();
+          }, 1500);
+        } else {
+          toast.error(result.reason || "Check-in denied");
+        }
       }
     } catch (error: any) {
-      toast.error(error.message || "Check-in failed");
+      toast.error(error.message || "Operation failed");
     }
   };
 
@@ -84,6 +109,20 @@ export default function QRScanner({
               {memberId}
             </p>
           </div>
+
+          {/* Check In/Out Button */}
+          <button
+            onClick={handleCheckIn}
+            className={`w-full px-4 py-3 rounded-lg font-semibold text-white ${
+              localStorage.getItem(MEMBER_CHECKIN_STATUS_KEY) === "checked_in"
+                ? "bg-orange-600 hover:bg-orange-700"
+                : "bg-green-600 hover:bg-green-700"
+            }`}
+          >
+            {localStorage.getItem(MEMBER_CHECKIN_STATUS_KEY) === "checked_in"
+              ? "Check Out"
+              : "Check In"}
+          </button>
         </div>
       </div>
     </div>

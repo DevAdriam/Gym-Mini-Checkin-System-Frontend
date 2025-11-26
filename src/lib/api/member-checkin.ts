@@ -47,3 +47,26 @@ export const memberCheckIn = async (
   };
 };
 
+// Member checkout (public endpoint)
+export const memberCheckOut = async (
+  memberId: string
+): Promise<CheckInResponse> => {
+  const response = await axios.post(
+    `${API_BASE_URL}/checkin/checkout`,
+    { memberId },
+    {
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
+  );
+  const data = response.data._data?.data || response.data.data || response.data;
+  return {
+    success: data.success !== false,
+    status: data.status || (data.success ? "ALLOWED" : "DENIED"),
+    message: data.message,
+    reason: data.reason,
+    member: data.member,
+  };
+};
+

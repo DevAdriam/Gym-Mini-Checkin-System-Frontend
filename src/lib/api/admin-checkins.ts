@@ -41,6 +41,16 @@ export const getMemberCheckInsPublic = async (
   memberId: string,
   params?: Omit<CheckInsQueryParams, "memberId">
 ): Promise<PaginatedResponse<CheckInLog>> => {
+  if (!memberId || memberId.trim() === "") {
+    // Return empty response instead of throwing to avoid unnecessary error toasts
+    return {
+      data: [],
+      total: 0,
+      page: params?.page || 1,
+      limit: params?.limit || 20,
+      totalPages: 0,
+    };
+  }
   const normalizedParams = params ? normalizeQueryParams(params) : undefined;
   const response = await axios.get(
     `${API_BASE_URL}/members/${memberId}/checkins`,

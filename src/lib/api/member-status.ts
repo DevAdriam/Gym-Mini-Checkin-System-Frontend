@@ -6,6 +6,12 @@ import type { Member } from "../../types/index";
 export interface MemberStatusResponse {
   member: Member;
   status: "PENDING" | "APPROVED" | "REJECTED" | "ACTIVE" | "EXPIRED";
+  currentCheckInStatus?: "checked_in" | "checked_out" | null;
+  currentCheckIn?: {
+    id: string;
+    checkInTime: string;
+    status: "ALLOWED" | "DENIED";
+  };
 }
 
 export const checkMemberStatus = async (
@@ -38,6 +44,8 @@ export const checkMemberStatus = async (
     return {
       member,
       status: status as "PENDING" | "APPROVED" | "REJECTED" | "ACTIVE" | "EXPIRED",
+      currentCheckInStatus: data.currentCheckInStatus || null,
+      currentCheckIn: data.currentCheckIn || undefined,
     };
   } catch (error: any) {
     // If 404, member not found

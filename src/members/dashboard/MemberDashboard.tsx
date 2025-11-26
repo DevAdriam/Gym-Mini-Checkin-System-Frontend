@@ -13,6 +13,7 @@ import type {
 } from "../../types/index";
 
 const MEMBER_EMAIL_KEY = "gym_member_email";
+const MEMBER_CHECKIN_STATUS_KEY = "gym_member_checkin_status";
 
 export default function MemberDashboard() {
   const location = useLocation();
@@ -33,7 +34,11 @@ export default function MemberDashboard() {
     }
   }, [location, navigate]);
 
-  const { data: statusData, isLoading } = useCheckMemberStatus(email || "");
+  const {
+    data: statusData,
+    isLoading,
+    refetch: refetchMemberStatus,
+  } = useCheckMemberStatus(email || "");
   const member = statusData?.member;
 
   // Get check-in logs for this member (public, no auth)
@@ -41,8 +46,20 @@ export default function MemberDashboard() {
     PaginatedResponse<CheckInLog>
   >({
     queryKey: ["member", "checkins", member?.id],
-    queryFn: () =>
-      getMemberCheckInsPublic(member?.id || "", { page: 1, limit: 20 }),
+    queryFn: () => {
+      // This should never run if enabled is false, but double-check for safety
+      if (!member?.id) {
+        // Return empty response instead of throwing to avoid toast
+        return Promise.resolve({
+          data: [],
+          total: 0,
+          page: 1,
+          limit: 20,
+          totalPages: 0,
+        });
+      }
+      return getMemberCheckInsPublic(member.id, { page: 1, limit: 20 });
+    },
     enabled: !!member?.id,
   });
 
@@ -67,11 +84,18 @@ export default function MemberDashboard() {
 
   const checkInLogs = (checkInData as any)?.data || [];
 
-  const handleCheckInSuccess = () => {
-    // Refetch check-in logs
-    refetchCheckIns();
-    setShowQRScanner(false);
-  };
+  // Determine check-in status from API response
+  const isCheckedIn = statusData?.currentCheckInStatus === "checked_in";
+
+  // Update localStorage when status changes (for QR scanner page)
+  useEffect(() => {
+    if (statusData?.currentCheckInStatus) {
+      localStorage.setItem(
+        MEMBER_CHECKIN_STATUS_KEY,
+        statusData.currentCheckInStatus
+      );
+    }
+  }, [statusData?.currentCheckInStatus]);
 
   if (isLoading || !email) {
     return (
@@ -131,7 +155,11 @@ export default function MemberDashboard() {
           </div>
           <button
             onClick={() => setShowQRScanner(true)}
-            className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold flex items-center space-x-2"
+            className={`px-6 py-3 rounded-lg font-semibold flex items-center space-x-2 ${
+              isCheckedIn
+                ? "bg-orange-600 hover:bg-orange-700 text-white"
+                : "bg-green-600 hover:bg-green-700 text-white"
+            }`}
           >
             <svg
               className="w-5 h-5"
@@ -146,7 +174,9 @@ export default function MemberDashboard() {
                 d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
               />
             </svg>
-            <span>Scan QR / Check In</span>
+            <span>
+              {isCheckedIn ? "Scan QR / Check Out" : "Scan QR / Check In"}
+            </span>
           </button>
         </div>
 
@@ -319,11 +349,17 @@ export default function MemberDashboard() {
         </div>
       </div>
 
-      {/* QR Scanner Modal */}
+      {/* QR Code Modal */}
       {showQRScanner && member.memberId && (
         <QRScanner
           memberId={member.memberId}
-          onCheckInSuccess={handleCheckInSuccess}
+          onCheckInSuccess={() => {
+            // Refetch member status to get updated check-in status from API
+            refetchMemberStatus();
+            // Refetch check-in logs
+            refetchCheckIns();
+            setShowQRScanner(false);
+          }}
           onClose={() => setShowQRScanner(false)}
         />
       )}

@@ -1,12 +1,35 @@
 import { Link, Outlet, useLocation } from "react-router-dom";
+import { useEffect } from "react";
 import { useAdminLogout } from "../lib/hooks/use-admin-auth";
+import { useSocket } from "../lib/hooks/use-socket";
+import { usePendingMembersCount } from "../lib/hooks/use-admin-members";
+import { disconnectSocket } from "../lib/socket";
 
 export default function AdminLayout() {
   const location = useLocation();
   const logoutMutation = useAdminLogout();
 
+  // Connect to WebSocket for real-time member updates
+  useSocket({
+    enabled: true, // Only enable when admin is logged in
+  });
+
+  // Get pending members count for badge
+  const { data: pendingCount } = usePendingMembersCount();
+
+  // Disconnect socket on logout
+  useEffect(() => {
+    if (logoutMutation.isSuccess) {
+      disconnectSocket();
+    }
+  }, [logoutMutation.isSuccess]);
+
   const navItems = [
-    { path: "/admin/members", label: "Members" },
+    {
+      path: "/admin/members",
+      label: "Members",
+      badge: pendingCount && pendingCount > 0 ? pendingCount : undefined,
+    },
     { path: "/admin/membership-packages", label: "Packages" },
     { path: "/admin/checkin-logs", label: "Check-in Logs" },
   ];
@@ -33,13 +56,18 @@ export default function AdminLayout() {
                   <Link
                     key={item.path}
                     to={item.path}
-                    className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    className={`px-3 py-2 rounded-md text-sm font-medium transition-colors relative ${
                       location.pathname === item.path
                         ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200"
                         : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
                     }`}
                   >
                     {item.label}
+                    {item.badge && item.badge > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                        {item.badge > 99 ? "99+" : item.badge}
+                      </span>
+                    )}
                   </Link>
                 ))}
               </div>

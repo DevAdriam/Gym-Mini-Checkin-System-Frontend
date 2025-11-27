@@ -2,12 +2,13 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import {
   useAvailablePackages,
   useRegisterMember,
 } from "../../lib/hooks/use-member-register";
 import { useCheckMemberStatus } from "../../lib/hooks/use-member-status";
+import { useMemberSocket } from "../../lib/hooks/use-member-socket";
 import ImageUpload from "../../components/ImageUpload";
 import { uploadImage } from "../../lib/api/image-upload";
 import type {
@@ -17,11 +18,13 @@ import type {
 
 // LocalStorage key for member email
 const MEMBER_EMAIL_KEY = "gym_member_email";
+const MEMBER_ID_KEY = "gym_member_id";
 
 // Step 1: Information Schema
 const informationSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  email: z.string().email("Invalid email address").optional().or(z.literal("")),
+  email: z.string().email("Invalid email address").min(1, "Email is required"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
   phone: z.string().optional(),
   profilePhoto: z.string().optional(),
 });
@@ -65,6 +68,22 @@ export default function MemberRegisterPage() {
   const { data: statusData, isLoading: statusLoading } = useCheckMemberStatus(
     storedEmail || ""
   );
+
+  // Subscribe to member-specific socket events for real-time approval/rejection notifications
+  useMemberSocket({
+    memberId: statusData?.member?.id,
+    enabled: !!statusData?.member?.id && !!storedEmail,
+    onMemberApproved: () => {
+      // When approved, navigate to dashboard
+      navigate("/members/dashboard", {
+        state: { member: statusData?.member },
+      });
+    },
+    onMemberRejected: () => {
+      // When rejected, show rejected modal
+      setShowRejectedModal(true);
+    },
+  });
 
   // Handle status check result
   useEffect(() => {
@@ -166,7 +185,8 @@ export default function MemberRegisterPage() {
     // Submit registration first (without images, or with placeholder URLs)
     const registrationData = {
       name: formData.name,
-      email: formData.email || undefined,
+      email: formData.email,
+      password: formData.password,
       phone: formData.phone || undefined,
       profilePhoto: undefined, // Will upload after registration
       membershipPackageId: selectedPackage.id,
@@ -180,10 +200,13 @@ export default function MemberRegisterPage() {
           response._data?.data?.member?.id ||
           response._data?.data?.id;
 
-        // Store email in localStorage
+        // Store email and member ID in localStorage
         if (formData.email) {
           localStorage.setItem(MEMBER_EMAIL_KEY, formData.email);
           setStoredEmail(formData.email);
+        }
+        if (memberId) {
+          localStorage.setItem(MEMBER_ID_KEY, memberId);
         }
 
         if (!memberId) {
@@ -248,6 +271,18 @@ export default function MemberRegisterPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto">
+        {/* Login/Register Toggle */}
+        <div className="mb-6 text-center">
+          <p className="text-gray-600 dark:text-gray-400">
+            Already have an account?{" "}
+            <Link
+              to="/members/login"
+              className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+            >
+              Login here
+            </Link>
+          </p>
+        </div>
         {/* Progress Steps */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
@@ -320,7 +355,7 @@ export default function MemberRegisterPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Email Address
+                      Email Address *
                     </label>
                     <input
                       {...register("email")}
@@ -331,6 +366,23 @@ export default function MemberRegisterPage() {
                     {errors.email && (
                       <p className="mt-1 text-sm text-red-600 dark:text-red-400">
                         {errors.email.message}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Password *
+                    </label>
+                    <input
+                      {...register("password")}
+                      type="password"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter password (min 6 characters)"
+                    />
+                    {errors.password && (
+                      <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                        {errors.password.message}
                       </p>
                     )}
                   </div>

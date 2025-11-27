@@ -72,3 +72,20 @@ export const useMemberImages = (id: string) => {
     enabled: !!id,
   });
 };
+
+// Get Pending Members Count Query
+export const usePendingMembersCount = () => {
+  return useAsyncQuery({
+    queryKey: ["admin", "members", "pending-count"],
+    queryFn: async () => {
+      const response = await getMembers({
+        status: "PENDING",
+        page: 1,
+        limit: 1, // We only need the total count
+      });
+      return response.total || 0;
+    },
+    // Refetch every 30 seconds to keep count updated
+    refetchInterval: 30000,
+  });
+};

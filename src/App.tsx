@@ -7,6 +7,7 @@ import AdminLayout from "./admins/AdminLayout";
 import AdminMembersPage from "./admins/members/MembersPage";
 import AdminMembershipPackagesPage from "./admins/membership-packages/MembershipPackagesPage";
 import AdminCheckInLogsPage from "./admins/checkin-logs/CheckInLogsPage";
+import MemberLoginPage from "./members/login/LoginPage";
 import MemberRegisterPage from "./members/register/RegisterPage";
 import RegisterSuccessPage from "./members/register/RegisterSuccessPage";
 import MemberDashboard from "./members/dashboard/MemberDashboard";
@@ -54,6 +55,7 @@ function App() {
           </Route>
 
           {/* Member Routes */}
+          <Route path="/members/login" element={<MemberLoginPage />} />
           <Route path="/members/register" element={<MemberRegisterPage />} />
           <Route
             path="/members/register/success"
@@ -65,10 +67,7 @@ function App() {
           <Route path="/qr/scanner" element={<QRScannerPage />} />
 
           {/* Default redirect */}
-          <Route
-            path="/"
-            element={<Navigate to="/members/register" replace />}
-          />
+          <Route path="/" element={<Navigate to="/members/login" replace />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>

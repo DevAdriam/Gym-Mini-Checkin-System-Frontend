@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useCheckMemberStatus } from "../../lib/hooks/use-member-status";
 import { useAsyncQuery } from "../../lib/hooks/use-async-query";
+import { useMemberLogout } from "../../lib/hooks/use-member-auth";
+import { useMemberSocket } from "../../lib/hooks/use-member-socket";
 import { getMemberCheckInsPublic } from "../../lib/api/admin-checkins";
 import QRScanner from "../../components/QRScanner";
 import axios from "axios";
@@ -40,6 +42,12 @@ export default function MemberDashboard() {
     refetch: refetchMemberStatus,
   } = useCheckMemberStatus(email || "");
   const member = statusData?.member;
+
+  // Subscribe to member-specific socket events for real-time approval/rejection notifications
+  useMemberSocket({
+    memberId: member?.id,
+    enabled: !!member?.id,
+  });
 
   // Get check-in logs for this member (public, no auth)
   const { data: checkInData, refetch: refetchCheckIns } = useAsyncQuery<
@@ -83,6 +91,7 @@ export default function MemberDashboard() {
   });
 
   const checkInLogs = (checkInData as any)?.data || [];
+  const logoutMutation = useMemberLogout();
 
   // Determine check-in status from API response
   const isCheckedIn = statusData?.currentCheckInStatus === "checked_in";
@@ -153,31 +162,40 @@ export default function MemberDashboard() {
               Your membership dashboard
             </p>
           </div>
-          <button
-            onClick={() => setShowQRScanner(true)}
-            className={`px-6 py-3 rounded-lg font-semibold flex items-center space-x-2 ${
-              isCheckedIn
-                ? "bg-orange-600 hover:bg-orange-700 text-white"
-                : "bg-green-600 hover:bg-green-700 text-white"
-            }`}
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => setShowQRScanner(true)}
+              className={`px-6 py-3 rounded-lg font-semibold flex items-center space-x-2 ${
+                isCheckedIn
+                  ? "bg-orange-600 hover:bg-orange-700 text-white"
+                  : "bg-green-600 hover:bg-green-700 text-white"
+              }`}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
-              />
-            </svg>
-            <span>
-              {isCheckedIn ? "Scan QR / Check Out" : "Scan QR / Check In"}
-            </span>
-          </button>
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
+                />
+              </svg>
+              <span>
+                {isCheckedIn ? "Scan QR / Check Out" : "Scan QR / Check In"}
+              </span>
+            </button>
+            <button
+              onClick={() => logoutMutation.mutate()}
+              disabled={logoutMutation.isPending}
+              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white disabled:opacity-50 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              {logoutMutation.isPending ? "Logging out..." : "Logout"}
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -353,13 +371,6 @@ export default function MemberDashboard() {
       {showQRScanner && member.memberId && (
         <QRScanner
           memberId={member.memberId}
-          onCheckInSuccess={() => {
-            // Refetch member status to get updated check-in status from API
-            refetchMemberStatus();
-            // Refetch check-in logs
-            refetchCheckIns();
-            setShowQRScanner(false);
-          }}
           onClose={() => setShowQRScanner(false)}
         />
       )}

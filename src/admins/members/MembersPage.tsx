@@ -6,6 +6,7 @@ import {
   useMemberDetail,
   useMemberImages,
 } from "../../lib/hooks/use-admin-members";
+import { useDebounce } from "../../lib/hooks/use-debounce";
 
 export default function AdminMembersPage() {
   const [statusFilter, setStatusFilter] = useState<
@@ -15,12 +16,13 @@ export default function AdminMembersPage() {
     ""
   );
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 500);
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
 
   const { data, isLoading, error } = useMembers({
     status: statusFilter || undefined,
     active: activeFilter || undefined,
-    search: searchQuery || undefined,
+    search: debouncedSearchQuery || undefined,
     page: 1,
     limit: 50,
   });

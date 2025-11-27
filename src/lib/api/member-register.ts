@@ -11,7 +11,8 @@ export interface PaymentScreenshotDto {
 // Member Register DTO
 export interface MemberRegisterDto {
   name: string;
-  email?: string;
+  email: string;
+  password: string;
   phone?: string;
   profilePhoto?: string;
   membershipPackageId: string;

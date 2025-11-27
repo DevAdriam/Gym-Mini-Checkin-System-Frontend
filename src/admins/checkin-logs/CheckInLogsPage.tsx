@@ -1,14 +1,16 @@
 import { useState } from "react";
 import { useCheckInLogs } from "../../lib/hooks/use-admin-checkins";
+import { useDebounce } from "../../lib/hooks/use-debounce";
 import type { CheckInStatus } from "../../types/index";
 
 export default function AdminCheckInLogsPage() {
   const [statusFilter, setStatusFilter] = useState<CheckInStatus | "">("");
   const [memberIdFilter, setMemberIdFilter] = useState("");
+  const debouncedMemberIdFilter = useDebounce(memberIdFilter, 500);
 
   const { data, isLoading, error } = useCheckInLogs({
     status: statusFilter || undefined,
-    memberId: memberIdFilter || undefined,
+    memberId: debouncedMemberIdFilter || undefined,
     page: 1,
     limit: 50,
   });
